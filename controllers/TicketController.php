@@ -136,6 +136,65 @@ class TicketController
         ]);
     }
 
+    public function bulkCreate(): void
+    {
+        $user = Auth::user();
+        $rawList = (string)($_POST['ticket_list'] ?? '');
+        $lines = preg_split('/\r\n|\r|\n/', $rawList) ?: [];
+
+        $ticketNumbers = [];
+        foreach ($lines as $line) {
+            $line = trim((string)$line);
+            if ($line === '') {
+                continue;
+            }
+            $firstCell = preg_split('/\t|;|,/', $line)[0] ?? '';
+            $ticket = trim((string)$firstCell);
+            $ticket = trim($ticket, " \t\n\r\0\x0B\"'");
+            if ($ticket !== '') {
+                $ticketNumbers[] = mb_substr($ticket, 0, 30);
+            }
+        }
+
+        $ticketNumbers = array_values(array_unique($ticketNumbers));
+        if (count($ticketNumbers) === 0) {
+            Flash::set('danger', 'No se detectaron tickets validos en la lista.');
+            Url::redirect('tickets');
+        }
+
+        $created = 0;
+        $existing = 0;
+        $failed = 0;
+        $firstError = null;
+        foreach ($ticketNumbers as $ticketNumber) {
+            if (Ticket::existsByTicketNumber($ticketNumber)) {
+                $existing++;
+                continue;
+            }
+            try {
+                Ticket::create([
+                    'ticket_number' => $ticketNumber,
+                    'estado' => 'no_tomado',
+                ], $user);
+                $created++;
+            } catch (Throwable $e) {
+                $failed++;
+                if ($firstError === null) {
+                    $firstError = $e->getMessage();
+                }
+            }
+        }
+
+        if ($failed > 0) {
+            $detail = $firstError !== null ? ' Error: ' . $firstError : '';
+            Flash::set('danger', 'Carga masiva parcial. Nuevos: ' . $created . '. Existentes: ' . $existing . '. Fallidos: ' . $failed . '.' . $detail);
+            Url::redirect('tickets');
+        }
+
+        Flash::set('success', 'Carga masiva finalizada. Nuevos: ' . $created . '. Ya existentes: ' . $existing . '.');
+        Url::redirect('tickets');
+    }
+
     public function updateFields(): void
     {
         $user = Auth::user();

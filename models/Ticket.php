@@ -97,14 +97,22 @@ class Ticket
         $sql = 'INSERT INTO tickets (ticket_number, pais, phone, email, estado, estado_info, problem_name, description, prioridad_id, fecha_vencimiento, sla_horas, creado_por, asignado_a)
                 VALUES (:ticket_number, :pais, :phone, :email, :estado, :estado_info, :problem_name, :description, :prioridad_id, :fecha_vencimiento, :sla_horas, :creado_por, :asignado_a)';
         $stmt = $pdo->prepare($sql);
+        $pais = self::nullIfEmpty(self::limitLen($data['pais'] ?? null, 100));
+        if ($pais === null) {
+            $pais = 'United States';
+        }
+        $problemName = self::nullIfEmpty(self::limitLen($data['problem_name'] ?? null, 150));
+        if ($problemName === null) {
+            $problemName = 'Pending information';
+        }
         $stmt->execute([
             'ticket_number' => self::nullIfEmpty(self::limitLen($data['ticket_number'] ?? null, 30)),
-            'pais' => self::nullIfEmpty(self::limitLen($data['pais'] ?? null, 100)),
+            'pais' => $pais,
             'phone' => self::nullIfEmpty(self::limitLen($data['phone'] ?? null, 30)),
             'email' => self::nullIfEmpty(self::limitLen($data['email'] ?? null, 150)),
             'estado' => $data['estado'] ?? 'no_tomado',
             'estado_info' => self::nullIfEmpty(self::limitLen($data['estado_info'] ?? null, 100)),
-            'problem_name' => self::nullIfEmpty(self::limitLen($data['problem_name'] ?? null, 150)),
+            'problem_name' => $problemName,
             'description' => self::nullIfEmpty($data['description'] ?? null),
             'prioridad_id' => (int)($data['prioridad_id'] ?? 2),
             'fecha_vencimiento' => null,
@@ -115,6 +123,17 @@ class Ticket
         $ticketId = (int) $pdo->lastInsertId();
         Audit::log((int)$user['id'], 'CREAR_TICKET', 'tickets', $ticketId);
         return $ticketId;
+    }
+
+    public static function existsByTicketNumber(string $ticketNumber): bool
+    {
+        $ticketNumber = trim($ticketNumber);
+        if ($ticketNumber === '') {
+            return false;
+        }
+        $stmt = Database::connection()->prepare('SELECT id FROM tickets WHERE ticket_number = :ticket_number LIMIT 1');
+        $stmt->execute(['ticket_number' => self::limitLen($ticketNumber, 30)]);
+        return (bool)$stmt->fetchColumn();
     }
 
     public static function findById(int $id, array $user): ?array

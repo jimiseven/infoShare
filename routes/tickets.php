@@ -16,6 +16,10 @@ $router->add('tickets/create.post', 'POST', fn() => $controllers['ticket']->stor
     fn() => AuthMiddleware::handle(),
 ], true);
 
+$router->add('tickets/bulk-create.post', 'POST', fn() => $controllers['ticket']->bulkCreate(), [
+    fn() => AuthMiddleware::handle(),
+], true);
+
 $router->add('tickets/show', 'GET', fn() => $controllers['ticket']->show(), [
     fn() => AuthMiddleware::handle(),
 ]);

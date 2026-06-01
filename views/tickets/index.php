@@ -5,6 +5,7 @@
   </div>
   <div class="d-flex gap-2">
     <button class="btn btn-outline-dark" data-bs-toggle="modal" data-bs-target="#filtersModal">Filtros</button>
+    <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#bulkCreateModal">Carga masiva</button>
     <a class="btn btn-primary" href="<?= View::e(Url::path('tickets/create')) ?>">Crear ticket</a>
   </div>
 </div>
@@ -94,6 +95,29 @@
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
           <button type="submit" class="btn btn-dark">Aplicar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="bulkCreateModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Cargar varios tickets</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="POST" action="<?= View::e(Url::path('tickets/bulk-create')) ?>">
+        <div class="modal-body">
+          <input type="hidden" name="_token" value="<?= View::e(Csrf::token()) ?>">
+          <label class="form-label">Pega la lista (un ticket por linea)</label>
+          <textarea class="form-control" name="ticket_list" rows="10" placeholder="TK-1001&#10;TK-1002&#10;TK-1003" required></textarea>
+          <small class="text-muted d-block mt-2">Si un ticket ya existe, no se vuelve a crear.</small>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Procesar lista</button>
         </div>
       </form>
     </div>
