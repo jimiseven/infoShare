@@ -53,6 +53,16 @@
           <input type="hidden" name="_token" value="<?= View::e(Csrf::token()) ?>">
           <input type="hidden" name="ticket_id" value="<?= (int)$ticket['id'] ?>">
           <textarea class="form-control mb-2" name="comentario" rows="3" placeholder="Escribe un nuevo comentario" required></textarea>
+          <div class="mb-2">
+            <label class="form-label">Registrar metrica con este comentario</label>
+            <select class="form-select form-select-sm" name="metric_mode">
+              <option value="">No registrar</option>
+              <option value="inbound_calls">Inbound calls</option>
+              <option value="outbound_calls">Outbound calls</option>
+              <option value="chats">Online chat</option>
+              <option value="emails">Emails</option>
+            </select>
+          </div>
           <div class="d-flex justify-content-between align-items-center">
             <div class="form-check">
               <input class="form-check-input" type="checkbox" name="es_interno" id="es_interno" checked>
@@ -149,7 +159,7 @@
           <div class="row g-2">
             <div class="col-md-6"><label class="form-label">Ticket number</label><input class="form-control" name="ticket_number" value="<?= View::e($ticket['ticket_number'] ?? '') ?>"></div>
             <div class="col-md-6"><label class="form-label">Pais</label><input class="form-control" name="pais" value="<?= View::e($ticket['pais'] ?? '') ?>"></div>
-            <div class="col-md-6"><label class="form-label">Telefono</label><input class="form-control" name="phone" value="<?= View::e($ticket['phone'] ?? '') ?>"></div>
+            <div class="col-md-6"><label class="form-label">Telefono</label><input class="form-control" name="phone" inputmode="tel" placeholder="Ej: 00319032272423" value="<?= View::e($ticket['phone'] ?? '') ?>"></div>
             <div class="col-md-6"><label class="form-label">Email</label><input class="form-control" name="email" value="<?= View::e($ticket['email'] ?? '') ?>"></div>
             <div class="col-md-6"><label class="form-label">Problema</label><input class="form-control" name="problem_name" value="<?= View::e($ticket['problem_name'] ?? '') ?>"></div>
             <div class="col-md-6"><label class="form-label">Prioridad</label><select class="form-select" name="prioridad_id"><?php foreach ($priorities as $p): ?><option value="<?= (int)$p['id'] ?>" <?= ((int)$ticket['prioridad_id'] === (int)$p['id']) ? 'selected' : '' ?>><?= View::e($p['nombre']) ?></option><?php endforeach; ?></select></div>

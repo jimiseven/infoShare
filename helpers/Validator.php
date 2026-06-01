@@ -26,4 +26,18 @@ class Validator
         }
         return mb_strlen(trim($value)) <= $len;
     }
+
+    public static function phone(?string $value): bool
+    {
+        if ($value === null || trim($value) === '') {
+            return true;
+        }
+
+        $v = trim($value);
+        if (preg_match('/^00\d{6,20}$/', $v) === 1) {
+            return true;
+        }
+
+        return preg_match('/^[0-9\+\-\s\(\)]{6,25}$/', $v) === 1;
+    }
 }

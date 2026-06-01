@@ -21,7 +21,7 @@
       </div>
       <div class="col-md-3">
         <label class="form-label">Telefono</label>
-        <input type="text" class="form-control" name="phone">
+        <input type="text" class="form-control" name="phone" inputmode="tel" placeholder="Ej: 00319032272423">
       </div>
       <div class="col-md-3">
         <label class="form-label">Pais</label>

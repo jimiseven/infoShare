@@ -1,6 +1,22 @@
 <?php
 $flash = Flash::get();
 $user = Auth::user();
+$currentRoute = $_GET['r'] ?? null;
+if ($currentRoute === null || trim((string)$currentRoute) === '') {
+    $uriPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
+    $base = APP_BASE_PATH !== '' ? APP_BASE_PATH : '';
+    if ($base !== '' && str_starts_with((string)$uriPath, $base)) {
+        $uriPath = substr((string)$uriPath, strlen($base));
+    }
+    $currentRoute = trim((string)$uriPath, '/');
+    if ($currentRoute === '' || $currentRoute === 'index.php') {
+        $currentRoute = 'dashboard';
+    }
+}
+
+$isActive = static function (string $route) use ($currentRoute): string {
+    return $currentRoute === $route ? 'active' : '';
+};
 ?>
 <!doctype html>
 <html lang="es">
@@ -107,14 +123,14 @@ $user = Auth::user();
         <div class="brand-sub">Ticket operations panel</div>
       </div>
       <nav class="nav flex-column mb-3">
-        <a href="<?= View::e(Url::path('dashboard')) ?>" class="nav-link side-link">Dashboard</a>
-        <a href="<?= View::e(Url::path('tickets')) ?>" class="nav-link side-link">Tickets</a>
-        <a href="<?= View::e(Url::path('reports/pending')) ?>" class="nav-link side-link">Pendientes</a>
-        <a href="<?= View::e(Url::path('reports/metrics')) ?>" class="nav-link side-link">Metricas</a>
-        <a href="<?= View::e(Url::path('reports/sla')) ?>" class="nav-link side-link">SLA</a>
+        <a href="<?= View::e(Url::path('dashboard')) ?>" class="nav-link side-link <?= $isActive('dashboard') ?>">Dashboard</a>
+        <a href="<?= View::e(Url::path('tickets')) ?>" class="nav-link side-link <?= $isActive('tickets') ?>">Tickets</a>
+        <a href="<?= View::e(Url::path('reports/pending')) ?>" class="nav-link side-link <?= $isActive('reports/pending') ?>">Pendientes</a>
+        <a href="<?= View::e(Url::path('reports/metrics')) ?>" class="nav-link side-link <?= $isActive('reports/metrics') ?>">Metricas</a>
+        <a href="<?= View::e(Url::path('reports/sla')) ?>" class="nav-link side-link <?= $isActive('reports/sla') ?>">SLA</a>
         <?php if ($user['rol'] === 'admin'): ?>
-          <a href="<?= View::e(Url::path('users')) ?>" class="nav-link side-link">Usuarios</a>
-          <a href="<?= View::e(Url::path('audit')) ?>" class="nav-link side-link">Auditoria</a>
+          <a href="<?= View::e(Url::path('users')) ?>" class="nav-link side-link <?= $isActive('users') ?>">Usuarios</a>
+          <a href="<?= View::e(Url::path('audit')) ?>" class="nav-link side-link <?= $isActive('audit') ?>">Auditoria</a>
         <?php endif; ?>
       </nav>
       <div class="mt-auto">
@@ -162,14 +178,14 @@ $user = Auth::user();
   </div>
   <div class="offcanvas-body">
     <div class="nav flex-column mb-3">
-      <a href="<?= View::e(Url::path('dashboard')) ?>" class="nav-link">Dashboard</a>
-      <a href="<?= View::e(Url::path('tickets')) ?>" class="nav-link">Tickets</a>
-      <a href="<?= View::e(Url::path('reports/pending')) ?>" class="nav-link">Pendientes</a>
-      <a href="<?= View::e(Url::path('reports/metrics')) ?>" class="nav-link">Metricas</a>
-      <a href="<?= View::e(Url::path('reports/sla')) ?>" class="nav-link">SLA</a>
+      <a href="<?= View::e(Url::path('dashboard')) ?>" class="nav-link <?= $isActive('dashboard') ?>">Dashboard</a>
+      <a href="<?= View::e(Url::path('tickets')) ?>" class="nav-link <?= $isActive('tickets') ?>">Tickets</a>
+      <a href="<?= View::e(Url::path('reports/pending')) ?>" class="nav-link <?= $isActive('reports/pending') ?>">Pendientes</a>
+      <a href="<?= View::e(Url::path('reports/metrics')) ?>" class="nav-link <?= $isActive('reports/metrics') ?>">Metricas</a>
+      <a href="<?= View::e(Url::path('reports/sla')) ?>" class="nav-link <?= $isActive('reports/sla') ?>">SLA</a>
       <?php if ($user['rol'] === 'admin'): ?>
-        <a href="<?= View::e(Url::path('users')) ?>" class="nav-link">Usuarios</a>
-        <a href="<?= View::e(Url::path('audit')) ?>" class="nav-link">Auditoria</a>
+        <a href="<?= View::e(Url::path('users')) ?>" class="nav-link <?= $isActive('users') ?>">Usuarios</a>
+        <a href="<?= View::e(Url::path('audit')) ?>" class="nav-link <?= $isActive('audit') ?>">Auditoria</a>
       <?php endif; ?>
     </div>
     <form method="POST" action="<?= View::e(Url::path('logout')) ?>">

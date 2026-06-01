@@ -6,6 +6,7 @@ require_once __DIR__ . '/../models/Priority.php';
 require_once __DIR__ . '/../models/User.php';
 require_once __DIR__ . '/../models/Tag.php';
 require_once __DIR__ . '/../models/StatusInfoOption.php';
+require_once __DIR__ . '/../models/Metric.php';
 
 class TicketController
 {
@@ -61,6 +62,10 @@ class TicketController
         }
         if (!Validator::email($_POST['email'] ?? null)) {
             Flash::set('danger', 'Email invalido.');
+            Url::redirect('tickets/create');
+        }
+        if (!Validator::phone($_POST['phone'] ?? null)) {
+            Flash::set('danger', 'Telefono invalido. Puedes usar formato que inicia con 00.');
             Url::redirect('tickets/create');
         }
 
@@ -130,6 +135,10 @@ class TicketController
             Flash::set('danger', 'Email invalido.');
             Url::redirect('tickets/show', ['id' => $id]);
         }
+        if (!Validator::phone($_POST['phone'] ?? null)) {
+            Flash::set('danger', 'Telefono invalido. Puedes usar formato que inicia con 00.');
+            Url::redirect('tickets/show', ['id' => $id]);
+        }
         Ticket::updateFields($id, $_POST, $user);
         Flash::set('success', 'Ticket actualizado.');
         Url::redirect('tickets/show', ['id' => $id]);
@@ -170,6 +179,7 @@ class TicketController
         $ticketId = (int)($_POST['ticket_id'] ?? 0);
         $comentario = trim((string)($_POST['comentario'] ?? ''));
         $esInterno = isset($_POST['es_interno']) ? 1 : 0;
+        $metricMode = trim((string)($_POST['metric_mode'] ?? ''));
         if ($ticketId <= 0 || $comentario === '') {
             Flash::set('danger', 'Comentario invalido.');
             Url::redirect('tickets');
@@ -184,6 +194,14 @@ class TicketController
         if (!$saved) {
             Flash::set('danger', 'No se pudo guardar el comentario. Intenta de nuevo.');
             Url::redirect('tickets/show', ['id' => $ticketId]);
+        }
+
+        if ($metricMode !== '') {
+            $metricOk = Metric::incrementFromComment((int)$user['id'], $metricMode, $ticketId, $comentario);
+            if (!$metricOk) {
+                Flash::set('danger', 'Comentario guardado, pero no se pudo registrar la metrica.');
+                Url::redirect('tickets/show', ['id' => $ticketId]);
+            }
         }
 
         Flash::set('success', 'Comentario agregado.');

@@ -1,0 +1,34 @@
+-- ============================================================
+-- INFO SHARE - CONTROL DE METRICAS (V5)
+-- Ejecutar manualmente en bd_infoshare_v1
+-- ============================================================
+
+USE `bd_infoshare_v1`;
+
+-- 1) Bitacora de eventos de metricas por comentario de progreso
+CREATE TABLE IF NOT EXISTS `metricas_eventos` (
+  `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+  `fecha` date NOT NULL,
+  `usuario_id` bigint(20) UNSIGNED NOT NULL,
+  `ticket_id` bigint(20) UNSIGNED DEFAULT NULL,
+  `modo` enum('inbound_calls','outbound_calls','chats','emails') NOT NULL,
+  `comentario` text DEFAULT NULL,
+  `created_at` datetime DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_metricas_eventos_fecha_usuario` (`fecha`,`usuario_id`),
+  KEY `idx_metricas_eventos_ticket` (`ticket_id`),
+  CONSTRAINT `fk_metricas_eventos_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios` (`id`),
+  CONSTRAINT `fk_metricas_eventos_ticket` FOREIGN KEY (`ticket_id`) REFERENCES `tickets` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- 2) Asegurar que metricas_diarias tenga updated_at para trazabilidad
+ALTER TABLE `metricas_diarias`
+  ADD COLUMN IF NOT EXISTS `updated_at` datetime NULL DEFAULT current_timestamp() ON UPDATE current_timestamp() AFTER `created_at`;
+
+-- 3) Indice util para reportes por fecha y usuario
+ALTER TABLE `metricas_diarias`
+  ADD INDEX IF NOT EXISTS `idx_metricas_fecha_usuario_v2` (`fecha`,`usuario_id`);
+
+-- ============================================================
+-- FIN
+-- ============================================================

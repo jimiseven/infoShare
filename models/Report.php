@@ -103,6 +103,14 @@ class Report
                   SELECT COUNT(*)
                   FROM tickets t
                   WHERE t.deleted_at IS NULL
+                    AND t.estado IN ("cerrado", "respondido")
+                    AND DATE(t.updated_at) = m.fecha
+                    AND (t.asignado_a = m.usuario_id OR t.creado_por = m.usuario_id)
+                ) AS tickets_dia,
+                (
+                  SELECT COUNT(*)
+                  FROM tickets t
+                  WHERE t.deleted_at IS NULL
                     AND t.estado = "preguntar"
                     AND DATE(t.updated_at) = m.fecha
                     AND (t.asignado_a = m.usuario_id OR t.creado_por = m.usuario_id)

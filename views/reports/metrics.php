@@ -1,4 +1,5 @@
 <h1 class="h3 mb-3">Reporte de Metricas</h1>
+<?php $loggedUser = Auth::user(); ?>
 <form class="card card-body mb-3" method="GET" action="<?= View::e(Url::path('reports/metrics')) ?>">
   <div class="row g-2">
     <div class="col-md-3"><input type="date" class="form-control" name="fecha" value="<?= View::e($_GET['fecha'] ?? '') ?>"></div>
@@ -22,17 +23,18 @@
   <?php foreach ($rows as $r): ?>
     <?php
       $fechaTexto = date('M j', strtotime((string)$r['fecha']));
+      $reporterName = $loggedUser['nombre'] ?? ($r['nombre'] ?? 'User');
       $sms = "Here is my report of today\n"
            . "- Report - " . $fechaTexto . "\n"
-           . "- Tickets: " . (int)$r['total_interacciones'] . "\n"
-           . "- " . $r['nombre'] . "\n"
+           . "- Tickets: " . (int)$r['tickets_dia'] . "\n"
+           . "- " . $reporterName . "\n"
            . "- Inbound calls: " . (int)$r['inbound_calls'] . "\n"
            . "- Outbound calls: " . (int)$r['outbound_calls'] . "\n"
-           . "- Calls failed to connect: " . (int)$r['failed_calls'] . "\n"
+           . "- Calls failed to connect: 0\n"
            . "- Online chat: " . (int)$r['chats'] . "\n"
-           . "- Issues resolved over the first call: -\n"
+           . "- Issues resolved over the first call: 0\n"
            . "- Emails: " . (int)$r['emails'] . "\n"
-           . "- Tickets needing HQ help or attention: " . (int)$r['tickets_hq'];
+           . "- Tickets needing HQ help or attention: 0";
     ?>
     <tr>
       <td><?= View::e($r['fecha']) ?></td><td><?= View::e($r['nombre']) ?></td>
