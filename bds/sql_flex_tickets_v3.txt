@@ -1,0 +1,84 @@
+-- ============================================================
+-- INFO SHARE - FLEXIBILIZAR CAPTURA DE TICKETS (V3)
+-- Objetivo: permitir guardar tickets con datos parciales
+-- Ejemplo: solo ticket_number o solo email
+-- ============================================================
+
+USE `bd_infoshare_v1`;
+
+-- Recomendado: backup antes de ejecutar.
+
+-- ============================================================
+-- BLOQUE 1: CAMPOS OPCIONALES EN TICKETS
+-- ============================================================
+
+ALTER TABLE `tickets`
+  MODIFY `ticket_number` varchar(30) NULL,
+  MODIFY `pais` varchar(100) NULL,
+  MODIFY `phone` varchar(30) NULL,
+  MODIFY `email` varchar(150) NULL,
+  MODIFY `problem_name` varchar(150) NULL,
+  MODIFY `description` text NULL,
+  MODIFY `creado_por` bigint(20) UNSIGNED NULL,
+  MODIFY `asignado_a` bigint(20) UNSIGNED NULL,
+  MODIFY `cerrado_por` bigint(20) UNSIGNED NULL,
+  MODIFY `fecha_vencimiento` datetime NULL,
+  MODIFY `sla_horas` int(10) UNSIGNED NULL DEFAULT 24;
+
+-- Mantener estado con valor por defecto.
+ALTER TABLE `tickets`
+  MODIFY `estado` enum('no_tomado','respondido','cerrado','preguntar') NOT NULL DEFAULT 'no_tomado';
+
+-- ============================================================
+-- BLOQUE 2: REGLA MINIMA DE IDENTIFICACION (OPCIONAL)
+-- ============================================================
+-- Esta regla exige que exista al menos uno: ticket_number, email o phone.
+-- Si prefieres permitir guardar totalmente vacio, NO ejecutes este bloque.
+
+ALTER TABLE `tickets`
+  ADD CONSTRAINT `chk_tickets_min_identificacion`
+  CHECK (
+    (`ticket_number` IS NOT NULL AND TRIM(`ticket_number`) <> '')
+    OR (`email` IS NOT NULL AND TRIM(`email`) <> '')
+    OR (`phone` IS NOT NULL AND TRIM(`phone`) <> '')
+  );
+
+-- Si ya existe la constraint o tu version no soporta CHECK activo,
+-- puedes omitir este bloque y controlar la validacion en PHP.
+
+-- ============================================================
+-- BLOQUE 3: AJUSTE DE TRIGGER DE AUDITORIA (SI EXISTE)
+-- ============================================================
+-- Ajusta trigger para evitar fallo si creado_por viene NULL.
+
+DROP TRIGGER IF EXISTS `tr_tickets_after_insert_auditoria`;
+
+DELIMITER $$
+
+CREATE TRIGGER `tr_tickets_after_insert_auditoria`
+AFTER INSERT ON `tickets`
+FOR EACH ROW
+BEGIN
+  IF NEW.`creado_por` IS NOT NULL THEN
+    INSERT INTO `auditoria_general` (`usuario_id`, `accion`, `tabla_afectada`, `registro_id`, `ip_address`, `user_agent`)
+    VALUES (NEW.`creado_por`, 'CREAR_TICKET', 'tickets', NEW.`id`, NULL, NULL);
+  END IF;
+END$$
+
+DELIMITER ;
+
+-- ============================================================
+-- BLOQUE 4: LIMPIEZA DE INPUTS VACIOS (RECOMENDADO)
+-- ============================================================
+-- Convierte cadenas vacias a NULL para mantener consistencia.
+
+UPDATE `tickets` SET `ticket_number` = NULL WHERE `ticket_number` = '';
+UPDATE `tickets` SET `pais` = NULL WHERE `pais` = '';
+UPDATE `tickets` SET `phone` = NULL WHERE `phone` = '';
+UPDATE `tickets` SET `email` = NULL WHERE `email` = '';
+UPDATE `tickets` SET `problem_name` = NULL WHERE `problem_name` = '';
+UPDATE `tickets` SET `description` = NULL WHERE `description` = '';
+
+-- ============================================================
+-- FIN
+-- ============================================================

@@ -1,0 +1,219 @@
+PROYECTO: SISTEMA WEB DE GESTIÓN DE TICKETS
+Base de datos: bd_infoshare_v1
+Archivo adjunto: bd_infoshare_v1.sql
+
+OBJETIVO DEL SISTEMA
+Desarrollar un sistema web profesional para la gestión diaria de soporte técnico utilizando PHP, Bootstrap 5 y MySQL. El sistema debe ser moderno, seguro, escalable y basado en la estructura definida en el archivo bd_infoshare_v1.sql.
+
+El desarrollo debe respetar completamente la estructura de la base de datos adjunta (tablas, relaciones, llaves foráneas, índices y ENUMs). No modificar la estructura sin justificación técnica.
+
+---
+
+## TIPOS DE USUARIO
+
+1. ADMIN
+
+* Ver todos los tickets
+* Crear tickets
+* Asignar tickets
+* Cambiar estado
+* Cerrar tickets
+* Ver métricas globales
+* Ver métricas por usuario
+* Ver historial completo
+* Ver auditoría
+* Gestionar usuarios
+
+2. USUARIO_NORMAL (Agente)
+
+* Ver solo tickets asignados a él
+* Cambiar estado
+* Agregar comentarios
+* Marcar como "preguntar"
+* Registrar métricas diarias
+* No puede ver auditoría global
+* No puede gestionar usuarios
+
+3. GERENTE
+
+* Ver todos los tickets
+* Ver métricas globales
+* Ver métricas por usuario
+* No puede eliminar usuarios
+* No gestiona roles
+
+---
+
+## FUNCIONALIDADES PRINCIPALES
+
+1. DASHBOARD
+   Debe mostrar:
+
+* Total tickets abiertos
+* Tickets en estado "preguntar"
+* Tickets cerrados hoy
+* Tickets vencidos (SLA vencido)
+* Métricas del día
+* Métricas globales (según rol)
+
+2. GESTIÓN DE TICKETS
+   Campos:
+
+* Ticket number
+* País
+* Teléfono
+* Email
+* Estado (no_tomado, respondido, cerrado, preguntar)
+* Estado info
+* Problema
+* Descripción
+* Prioridad (baja, media, alta, critica)
+* SLA
+* Fecha vencimiento
+* Asignado a
+* Historial
+* Tags
+* Comentarios internos
+
+Regla importante:
+Los tickets NO deben duplicarse al día siguiente.
+Los tickets con estado diferente de "cerrado" deben mostrarse automáticamente cada día.
+
+3. REPORTES
+
+Reporte de Pendientes:
+Formato:
+Ticket_Number – Problem_Name – Estado_Info – Prioridad – Asignado
+Filtrado por rol:
+
+* Usuario normal → solo los suyos
+* Admin y gerente → todos
+
+Reporte de Métricas del Día:
+Debe mostrar:
+
+* inbound_calls
+* outbound_calls
+* failed_calls
+* chats
+* emails
+* total_interacciones
+* tickets en estado preguntar
+
+Debe permitir filtros por:
+
+* Día
+* Usuario
+* Rango de fechas (para gerente)
+
+Reporte SLA:
+
+* Tickets vencidos
+* Tickets próximos a vencer
+* Tickets críticos
+
+4. HISTORIAL
+   Cada cambio de estado debe guardarse en ticket_historial:
+
+* Usuario que modificó
+* Campo modificado
+* Valor anterior
+* Valor nuevo
+* Fecha
+
+5. COMENTARIOS
+   Cada ticket debe permitir:
+
+* Comentarios internos
+* Usuario
+* Fecha
+* Indicador público/interno (si aplica)
+
+6. SISTEMA DE PRIORIDADES
+
+* Baja
+* Media
+* Alta
+* Crítica
+  Ordenar por nivel y fecha de vencimiento.
+
+7. TAGS
+
+* Permitir múltiples etiquetas por ticket
+* Filtrar tickets por tag
+
+8. AUDITORÍA
+   Debe registrar:
+
+* Login
+* Creación de ticket
+* Cambio de estado
+* Eliminación (soft delete)
+* Cambio de usuario
+* Cambio de rol
+
+---
+
+## SEGURIDAD
+
+* Login con sesiones seguras
+* Uso de password_hash() y password_verify()
+* Middleware por rol
+* Protección CSRF
+* Validación server-side
+* Bloquear acceso directo por URL a rutas restringidas
+* Soft delete usando deleted_at
+
+---
+
+## ARQUITECTURA REQUERIDA
+
+Estructura recomendada tipo MVC:
+
+/config
+/controllers
+/models
+/views
+/middleware
+/helpers
+
+Diseño:
+
+* Bootstrap 5
+* Panel administrativo moderno
+* Sidebar lateral
+* Dashboard con tarjetas estadísticas
+* Tablas con filtros dinámicos
+* Sistema responsive
+
+---
+
+## ESCALABILIDAD FUTURA
+
+El sistema debe estar preparado para:
+
+* API REST
+* Notificaciones automáticas
+* Escalamiento automático por SLA
+* Exportación a Excel / CSV
+* Multiempresa (multi-tenant)
+
+---
+
+## OBJETIVO FINAL
+
+Construir un sistema profesional comparable a:
+
+* Zendesk (versión simplificada)
+* Freshdesk básico
+* Jira Service Desk simplificado
+
+Debe ser:
+
+* Rápido
+* Seguro
+* Escalable
+* Profesional
+* Listo para producción
+
+FIN DEL DOCUMENTO
