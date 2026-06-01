@@ -45,3 +45,8 @@ $router->add('tickets/delete.post', 'POST', fn() => $controllers['ticket']->dele
     fn() => AuthMiddleware::handle(),
     fn() => RoleMiddleware::requireRoles(['admin']),
 ], true);
+
+$router->add('tickets/delete-multiple.post', 'POST', fn() => $controllers['ticket']->deleteMultiple(), [
+    fn() => AuthMiddleware::handle(),
+    fn() => RoleMiddleware::requireRoles(['admin']),
+], true);

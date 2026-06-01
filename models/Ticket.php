@@ -21,6 +21,14 @@ class Ticket
             $where[] = 't.estado = :estado';
             $params['estado'] = $filters['estado'];
         }
+        $fechaCierre = $filters['fecha_cierre'] ?? date('Y-m-d');
+        if (!empty($filters['estado']) && $filters['estado'] === 'cerrado') {
+            $where[] = 'DATE(t.updated_at) = :fecha_cierre';
+            $params['fecha_cierre'] = $fechaCierre;
+        } elseif (empty($filters['estado'])) {
+            $where[] = '(t.estado <> "cerrado" OR DATE(t.updated_at) = :fecha_cierre)';
+            $params['fecha_cierre'] = $fechaCierre;
+        }
         if (isset($filters['prioridad_id']) && (int)$filters['prioridad_id'] > 0) {
             $where[] = 't.prioridad_id = :prioridad_id';
             $params['prioridad_id'] = (int)$filters['prioridad_id'];
@@ -90,13 +98,13 @@ class Ticket
                 VALUES (:ticket_number, :pais, :phone, :email, :estado, :estado_info, :problem_name, :description, :prioridad_id, :fecha_vencimiento, :sla_horas, :creado_por, :asignado_a)';
         $stmt = $pdo->prepare($sql);
         $stmt->execute([
-            'ticket_number' => self::nullIfEmpty($data['ticket_number'] ?? null),
-            'pais' => self::nullIfEmpty($data['pais'] ?? null),
-            'phone' => self::nullIfEmpty($data['phone'] ?? null),
-            'email' => self::nullIfEmpty($data['email'] ?? null),
+            'ticket_number' => self::nullIfEmpty(self::limitLen($data['ticket_number'] ?? null, 30)),
+            'pais' => self::nullIfEmpty(self::limitLen($data['pais'] ?? null, 100)),
+            'phone' => self::nullIfEmpty(self::limitLen($data['phone'] ?? null, 30)),
+            'email' => self::nullIfEmpty(self::limitLen($data['email'] ?? null, 150)),
             'estado' => $data['estado'] ?? 'no_tomado',
-            'estado_info' => self::nullIfEmpty($data['estado_info'] ?? null),
-            'problem_name' => self::nullIfEmpty($data['problem_name'] ?? null),
+            'estado_info' => self::nullIfEmpty(self::limitLen($data['estado_info'] ?? null, 100)),
+            'problem_name' => self::nullIfEmpty(self::limitLen($data['problem_name'] ?? null, 150)),
             'description' => self::nullIfEmpty($data['description'] ?? null),
             'prioridad_id' => (int)($data['prioridad_id'] ?? 2),
             'fecha_vencimiento' => null,
@@ -175,7 +183,25 @@ class Ticket
     public static function comments(int $ticketId): array
     {
         $pdo = Database::connection();
-        $stmt = $pdo->prepare('SELECT c.*, u.nombre AS usuario_nombre FROM comentarios_ticket c INNER JOIN usuarios u ON u.id = c.usuario_id WHERE c.ticket_id = :ticket_id ORDER BY c.created_at ASC');
+        $hasMetricEvents = (bool)$pdo->query("SHOW TABLES LIKE 'metricas_eventos'")->fetchColumn();
+        if (!$hasMetricEvents) {
+            $stmt = $pdo->prepare('SELECT c.*, u.nombre AS usuario_nombre, NULL AS metric_modes FROM comentarios_ticket c INNER JOIN usuarios u ON u.id = c.usuario_id WHERE c.ticket_id = :ticket_id ORDER BY c.created_at DESC');
+            $stmt->execute(['ticket_id' => $ticketId]);
+            return $stmt->fetchAll();
+        }
+
+        $stmt = $pdo->prepare('SELECT c.*, u.nombre AS usuario_nombre,
+                               GROUP_CONCAT(DISTINCT me.modo ORDER BY me.modo SEPARATOR ",") AS metric_modes
+                               FROM comentarios_ticket c
+                               INNER JOIN usuarios u ON u.id = c.usuario_id
+                               LEFT JOIN metricas_eventos me
+                                 ON me.ticket_id = c.ticket_id
+                                AND me.usuario_id = c.usuario_id
+                                AND me.comentario = c.comentario
+                                AND me.fecha = DATE(c.created_at)
+                               WHERE c.ticket_id = :ticket_id
+                               GROUP BY c.id, c.ticket_id, c.usuario_id, c.comentario, c.es_interno, c.created_at, u.nombre
+                               ORDER BY c.created_at DESC');
         $stmt->execute(['ticket_id' => $ticketId]);
         return $stmt->fetchAll();
     }
@@ -255,6 +281,28 @@ class Ticket
         return $ok;
     }
 
+    public static function softDeleteMany(array $ids, int $userId): int
+    {
+        $cleanIds = array_values(array_unique(array_filter(array_map('intval', $ids), static fn(int $v): bool => $v > 0)));
+        if (empty($cleanIds)) {
+            return 0;
+        }
+
+        $pdo = Database::connection();
+        $placeholders = implode(',', array_fill(0, count($cleanIds), '?'));
+        $stmt = $pdo->prepare('UPDATE tickets SET deleted_at = NOW() WHERE deleted_at IS NULL AND id IN (' . $placeholders . ')');
+        $stmt->execute($cleanIds);
+        $deleted = (int)$stmt->rowCount();
+
+        if ($deleted > 0) {
+            foreach ($cleanIds as $ticketId) {
+                Audit::log($userId, 'SOFT_DELETE_TICKET', 'tickets', $ticketId);
+            }
+        }
+
+        return $deleted;
+    }
+
     public static function tags(int $ticketId): array
     {
         $stmt = Database::connection()->prepare('SELECT t.id, t.nombre FROM tags t INNER JOIN ticket_tags tt ON tt.tag_id = t.id WHERE tt.ticket_id = :ticket_id ORDER BY t.nombre ASC');
@@ -289,5 +337,17 @@ class Ticket
         }
         $value = trim((string) $value);
         return $value === '' ? null : $value;
+    }
+
+    private static function limitLen(mixed $value, int $maxLen): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        $text = trim((string)$value);
+        if ($text === '') {
+            return null;
+        }
+        return mb_substr($text, 0, $maxLen);
     }
 }

@@ -34,10 +34,10 @@ class Validator
         }
 
         $v = trim($value);
-        if (preg_match('/^00\d{6,20}$/', $v) === 1) {
+        if (preg_match('/^00\d{6,30}$/', $v) === 1) {
             return true;
         }
 
-        return preg_match('/^[0-9\+\-\s\(\)]{6,25}$/', $v) === 1;
+        return preg_match('/^[0-9\+\-\s\(\)]{6,30}$/', $v) === 1;
     }
 }

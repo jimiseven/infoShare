@@ -9,6 +9,8 @@
   </div>
 </div>
 
+<?php $isAdmin = (Auth::user()['rol'] ?? '') === 'admin'; ?>
+
 <form method="GET" action="index.php" class="card card-body mb-3">
   <input type="hidden" name="r" value="tickets">
   <div class="row g-2">
@@ -22,6 +24,9 @@
           <option value="<?= $estado ?>" <?= (($filters['estado'] ?? '') === $estado) ? 'selected' : '' ?>><?= $estado ?></option>
         <?php endforeach; ?>
       </select>
+    </div>
+    <div class="col-md-2">
+      <input type="date" name="fecha_cierre" value="<?= View::e($filters['fecha_cierre'] ?? '') ?>" class="form-control" title="Fecha de cierre">
     </div>
     <div class="col-md-2">
       <select name="prioridad_id" class="form-select">
@@ -52,6 +57,7 @@
     <div class="col-md-1"><button class="btn btn-outline-dark w-100">Aplicar</button></div>
     <div class="col-md-2"><a class="btn btn-outline-secondary w-100" href="<?= View::e(Url::path('tickets')) ?>">Limpiar</a></div>
   </div>
+  <small class="text-muted d-block mt-2">Los tickets cerrados se muestran solo del dia actual, salvo que filtres por fecha de cierre.</small>
 </form>
 
 <div class="modal fade" id="filtersModal" tabindex="-1" aria-hidden="true">
@@ -71,6 +77,7 @@
               <option value="<?= $estado ?>" <?= (($filters['estado'] ?? '') === $estado) ? 'selected' : '' ?>><?= $estado ?></option>
             <?php endforeach; ?>
           </select>
+          <input type="date" name="fecha_cierre" value="<?= View::e($filters['fecha_cierre'] ?? '') ?>" class="form-control" title="Fecha de cierre">
           <select name="prioridad_id" class="form-select">
             <option value="">Prioridad</option>
             <?php foreach ($priorities as $p): ?>
@@ -94,10 +101,21 @@
 </div>
 
 <div class="card">
+  <?php if ($isAdmin): ?>
+    <form method="POST" action="<?= View::e(Url::path('tickets/delete-multiple')) ?>" onsubmit="return confirm('Seguro que deseas eliminar los tickets seleccionados?');">
+      <input type="hidden" name="_token" value="<?= View::e(Csrf::token()) ?>">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Listado de tickets</span>
+        <button type="submit" class="btn btn-sm btn-danger">Eliminar seleccionados</button>
+      </div>
+  <?php endif; ?>
   <div class="table-responsive">
     <table class="table mb-0">
       <thead>
       <tr>
+        <?php if ($isAdmin): ?>
+          <th><input type="checkbox" id="checkAllTickets"></th>
+        <?php endif; ?>
         <th>Ticket</th><th>Pais</th><th>Estado</th><th>Prioridad</th><th>Asignado</th><th>Creado</th><th>Vence</th><th></th>
       </tr>
       </thead>
@@ -110,6 +128,9 @@
           }
         ?>
         <tr class="<?= $isOldOpen ? 'table-danger' : '' ?>">
+          <?php if ($isAdmin): ?>
+            <td><input type="checkbox" class="ticket-check" name="ticket_ids[]" value="<?= (int)$t['id'] ?>"></td>
+          <?php endif; ?>
           <td><?= View::e($t['ticket_number'] ?: ('ID-' . $t['id'])) ?></td>
           <td><?= View::e($t['pais'] ?? '-') ?></td>
           <td><?= View::e($t['estado']) ?></td>
@@ -123,7 +144,27 @@
       </tbody>
     </table>
   </div>
+  <?php if ($isAdmin): ?>
+    </form>
+  <?php endif; ?>
 </div>
+
+<?php if ($isAdmin): ?>
+  <script>
+    (function () {
+      var checkAll = document.getElementById('checkAllTickets');
+      if (!checkAll) {
+        return;
+      }
+      checkAll.addEventListener('change', function () {
+        var checks = document.querySelectorAll('.ticket-check');
+        for (var i = 0; i < checks.length; i++) {
+          checks[i].checked = checkAll.checked;
+        }
+      });
+    })();
+  </script>
+<?php endif; ?>
 
 <?php $totalPages = max(1, (int)ceil(((int)$total) / ((int)$perPage))); ?>
 <div class="d-flex justify-content-between align-items-center mt-3">

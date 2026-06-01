@@ -16,6 +16,8 @@ class TicketController
         $page = max(1, (int)($_GET['page'] ?? 1));
         $perPage = 15;
         $estadoRaw = trim((string)($_GET['estado'] ?? ''));
+        $fechaCierreRaw = trim((string)($_GET['fecha_cierre'] ?? ''));
+        $fechaCierre = preg_match('/^\d{4}-\d{2}-\d{2}$/', $fechaCierreRaw) ? $fechaCierreRaw : null;
         $allowedEstados = ['no_tomado', 'respondido', 'preguntar', 'cerrado'];
         $filters = [
             'tag_id' => (int)($_GET['tag_id'] ?? 0) > 0 ? (int)$_GET['tag_id'] : null,
@@ -23,6 +25,7 @@ class TicketController
             'prioridad_id' => (int)($_GET['prioridad_id'] ?? 0) > 0 ? (int)$_GET['prioridad_id'] : null,
             'asignado_a' => (int)($_GET['asignado_a'] ?? 0) > 0 ? (int)$_GET['asignado_a'] : null,
             'q' => trim((string)($_GET['q'] ?? '')),
+            'fecha_cierre' => $fechaCierre,
         ];
         if ($user['rol'] === 'usuario_normal') {
             $filters['asignado_a'] = null;
@@ -55,10 +58,11 @@ class TicketController
     public function store(): void
     {
         $user = Auth::user();
-        $identifierExists = trim((string)($_POST['ticket_number'] ?? '')) !== '' || trim((string)($_POST['email'] ?? '')) !== '' || trim((string)($_POST['phone'] ?? '')) !== '';
-        if (!$identifierExists) {
-            Flash::set('danger', 'Debes ingresar al menos ticket number, email o telefono.');
-            Url::redirect('tickets/create');
+        $ticketNumber = trim((string)($_POST['ticket_number'] ?? ''));
+        $email = trim((string)($_POST['email'] ?? ''));
+        $phone = trim((string)($_POST['phone'] ?? ''));
+        if ($ticketNumber === '' && $email === '' && $phone === '') {
+            $_POST['ticket_number'] = 'AUTO-' . date('YmdHis');
         }
         if (!Validator::email($_POST['email'] ?? null)) {
             Flash::set('danger', 'Email invalido.');
@@ -71,6 +75,10 @@ class TicketController
 
         $estadoInfo = trim((string)($_POST['estado_info'] ?? ''));
         $estadoInfoNuevo = trim((string)($_POST['estado_info_nuevo'] ?? ''));
+        if ($estadoInfo === '__nuevo__' && $estadoInfoNuevo === '') {
+            Flash::set('danger', 'Debes escribir el nuevo estado info.');
+            Url::redirect('tickets/create');
+        }
         if ($estadoInfoNuevo !== '') {
             StatusInfoOption::createIfNotExists($estadoInfoNuevo);
             $_POST['estado_info'] = $estadoInfoNuevo;
@@ -78,7 +86,12 @@ class TicketController
             $_POST['estado_info'] = $estadoInfo;
         }
 
-        $ticketId = Ticket::create($_POST, $user);
+        try {
+            $ticketId = Ticket::create($_POST, $user);
+        } catch (Throwable) {
+            Flash::set('danger', 'No se pudo crear el ticket. Revisa los datos e intenta de nuevo.');
+            Url::redirect('tickets/create');
+        }
 
         $tagIds = $_POST['tag_ids'] ?? [];
         if (empty($tagIds)) {
@@ -162,6 +175,12 @@ class TicketController
 
     public function assign(): void
     {
+        $user = Auth::user();
+        if (($user['rol'] ?? '') !== 'admin') {
+            Flash::set('danger', 'No tienes permisos para reasignar tickets.');
+            Url::redirect('tickets');
+        }
+
         $id = (int)($_POST['ticket_id'] ?? 0);
         $userId = (int)($_POST['asignado_a'] ?? 0);
         if ($id <= 0 || $userId <= 0) {
@@ -232,6 +251,25 @@ class TicketController
         }
         Ticket::softDelete($id, (int)$user['id']);
         Flash::set('success', 'Ticket eliminado (soft delete).');
+        Url::redirect('tickets');
+    }
+
+    public function deleteMultiple(): void
+    {
+        $user = Auth::user();
+        $ids = $_POST['ticket_ids'] ?? [];
+        if (!is_array($ids) || empty($ids)) {
+            Flash::set('danger', 'Debes seleccionar al menos un ticket para eliminar.');
+            Url::redirect('tickets');
+        }
+
+        $deleted = Ticket::softDeleteMany($ids, (int)$user['id']);
+        if ($deleted <= 0) {
+            Flash::set('danger', 'No se eliminaron tickets. Verifica la seleccion.');
+            Url::redirect('tickets');
+        }
+
+        Flash::set('success', 'Se eliminaron ' . $deleted . ' ticket(s).');
         Url::redirect('tickets');
     }
 }
