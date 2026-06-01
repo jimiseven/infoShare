@@ -32,4 +32,28 @@ class Tag
         }
         $pdo->commit();
     }
+
+    public static function failQuestionTags(): array
+    {
+        self::ensureTagExists('fail');
+        self::ensureTagExists('question');
+
+        $pdo = Database::connection();
+        $stmt = $pdo->prepare('SELECT id, nombre FROM tags WHERE nombre IN ("fail", "question") ORDER BY FIELD(nombre, "fail", "question")');
+        $stmt->execute();
+        return $stmt->fetchAll();
+    }
+
+    private static function ensureTagExists(string $name): void
+    {
+        $pdo = Database::connection();
+        $check = $pdo->prepare('SELECT id FROM tags WHERE nombre = :nombre LIMIT 1');
+        $check->execute(['nombre' => $name]);
+        if ($check->fetch()) {
+            return;
+        }
+
+        $insert = $pdo->prepare('INSERT INTO tags (nombre) VALUES (:nombre)');
+        $insert->execute(['nombre' => $name]);
+    }
 }

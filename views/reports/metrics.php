@@ -1,6 +1,5 @@
 <h1 class="h3 mb-3">Reporte de Metricas</h1>
-<form class="card card-body mb-3" method="GET" action="index.php">
-  <input type="hidden" name="r" value="reports/metrics">
+<form class="card card-body mb-3" method="GET" action="<?= View::e(Url::path('reports/metrics')) ?>">
   <div class="row g-2">
     <div class="col-md-3"><input type="date" class="form-control" name="fecha" value="<?= View::e($_GET['fecha'] ?? '') ?>"></div>
     <div class="col-md-3"><input type="date" class="form-control" name="desde" value="<?= View::e($_GET['desde'] ?? '') ?>"></div>

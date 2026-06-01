@@ -23,12 +23,19 @@ class UserController
 
     public function store(): void
     {
+        if (!Validator::email($_POST['email'] ?? null)) {
+            Flash::set('danger', 'Email invalido.');
+            Url::redirect('users/create');
+        }
+        if (!Validator::positiveInt($_POST['rol_id'] ?? null)) {
+            Flash::set('danger', 'Rol invalido.');
+            Url::redirect('users/create');
+        }
         User::create($_POST);
         $auth = Auth::user();
         Audit::log((int)$auth['id'], 'CREAR_USUARIO', 'usuarios', null);
         Flash::set('success', 'Usuario creado.');
-        header('Location: index.php?r=users');
-        exit;
+        Url::redirect('users');
     }
 
     public function edit(): void
@@ -49,11 +56,14 @@ class UserController
     public function update(): void
     {
         $id = (int)($_POST['id'] ?? 0);
+        if ($id <= 0 || !Validator::email($_POST['email'] ?? null)) {
+            Flash::set('danger', 'Datos invalidos para actualizar usuario.');
+            Url::redirect('users');
+        }
         User::update($id, $_POST);
         $auth = Auth::user();
         Audit::log((int)$auth['id'], 'ACTUALIZAR_USUARIO', 'usuarios', $id);
         Flash::set('success', 'Usuario actualizado.');
-        header('Location: index.php?r=users');
-        exit;
+        Url::redirect('users');
     }
 }

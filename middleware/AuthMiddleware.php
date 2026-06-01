@@ -6,8 +6,7 @@ class AuthMiddleware
     public static function handle(): void
     {
         if (!Auth::check()) {
-            header('Location: index.php?r=login');
-            exit;
+            Url::redirect('login');
         }
     }
 }

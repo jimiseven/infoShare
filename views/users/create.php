@@ -1,6 +1,6 @@
 <h1 class="h3 mb-3">Crear usuario</h1>
 <div class="card"><div class="card-body">
-  <form method="POST" action="index.php?r=users/create" class="row g-3">
+  <form method="POST" action="<?= View::e(Url::path('users/create')) ?>" class="row g-3">
     <input type="hidden" name="_token" value="<?= View::e(Csrf::token()) ?>">
     <div class="col-md-6"><label class="form-label">Nombre</label><input class="form-control" name="nombre" required></div>
     <div class="col-md-6"><label class="form-label">Email</label><input class="form-control" type="email" name="email" required></div>

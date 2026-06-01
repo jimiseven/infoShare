@@ -3,7 +3,7 @@
     <div class="card shadow-sm">
       <div class="card-body p-4">
         <h1 class="h4 mb-3">Iniciar sesion</h1>
-        <form method="POST" action="index.php?r=login">
+        <form method="POST" action="<?= View::e(Url::path('login')) ?>">
           <input type="hidden" name="_token" value="<?= View::e(Csrf::token()) ?>">
           <div class="mb-3">
             <label class="form-label">Email</label>

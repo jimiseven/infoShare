@@ -5,31 +5,49 @@ require_once __DIR__ . '/../models/Ticket.php';
 require_once __DIR__ . '/../models/Priority.php';
 require_once __DIR__ . '/../models/User.php';
 require_once __DIR__ . '/../models/Tag.php';
+require_once __DIR__ . '/../models/StatusInfoOption.php';
 
 class TicketController
 {
     public function index(): void
     {
         $user = Auth::user();
-        $tagId = isset($_GET['tag_id']) && $_GET['tag_id'] !== '' ? (int)$_GET['tag_id'] : null;
-        $tickets = Ticket::listByRole($user, $tagId);
+        $page = max(1, (int)($_GET['page'] ?? 1));
+        $perPage = 15;
+        $estadoRaw = trim((string)($_GET['estado'] ?? ''));
+        $allowedEstados = ['no_tomado', 'respondido', 'preguntar', 'cerrado'];
+        $filters = [
+            'tag_id' => (int)($_GET['tag_id'] ?? 0) > 0 ? (int)$_GET['tag_id'] : null,
+            'estado' => in_array($estadoRaw, $allowedEstados, true) ? $estadoRaw : null,
+            'prioridad_id' => (int)($_GET['prioridad_id'] ?? 0) > 0 ? (int)$_GET['prioridad_id'] : null,
+            'asignado_a' => (int)($_GET['asignado_a'] ?? 0) > 0 ? (int)$_GET['asignado_a'] : null,
+            'q' => trim((string)($_GET['q'] ?? '')),
+        ];
+        if ($user['rol'] === 'usuario_normal') {
+            $filters['asignado_a'] = null;
+        }
+        $result = Ticket::searchByRole($user, $filters, $page, $perPage);
         View::render('tickets/index', [
             'title' => 'Tickets',
-            'tickets' => $tickets,
-            'tags' => Tag::all(),
-            'selectedTagId' => $tagId,
+            'tickets' => $result['rows'],
+            'tags' => Tag::failQuestionTags(),
+            'priorities' => Priority::all(),
+            'users' => User::assignableUsers(),
+            'filters' => $filters,
+            'page' => $page,
+            'perPage' => $perPage,
+            'total' => $result['total'],
         ]);
     }
 
     public function create(): void
     {
         $priorities = Priority::all();
-        $users = User::assignableUsers();
         View::render('tickets/create', [
             'title' => 'Crear ticket',
             'priorities' => $priorities,
-            'users' => $users,
-            'tags' => Tag::all(),
+            'tags' => Tag::failQuestionTags(),
+            'statusInfoOptions' => StatusInfoOption::all(),
         ]);
     }
 
@@ -39,15 +57,34 @@ class TicketController
         $identifierExists = trim((string)($_POST['ticket_number'] ?? '')) !== '' || trim((string)($_POST['email'] ?? '')) !== '' || trim((string)($_POST['phone'] ?? '')) !== '';
         if (!$identifierExists) {
             Flash::set('danger', 'Debes ingresar al menos ticket number, email o telefono.');
-            header('Location: index.php?r=tickets/create');
-            exit;
+            Url::redirect('tickets/create');
+        }
+        if (!Validator::email($_POST['email'] ?? null)) {
+            Flash::set('danger', 'Email invalido.');
+            Url::redirect('tickets/create');
+        }
+
+        $estadoInfo = trim((string)($_POST['estado_info'] ?? ''));
+        $estadoInfoNuevo = trim((string)($_POST['estado_info_nuevo'] ?? ''));
+        if ($estadoInfoNuevo !== '') {
+            StatusInfoOption::createIfNotExists($estadoInfoNuevo);
+            $_POST['estado_info'] = $estadoInfoNuevo;
+        } else {
+            $_POST['estado_info'] = $estadoInfo;
         }
 
         $ticketId = Ticket::create($_POST, $user);
-        Tag::syncTicketTags($ticketId, $_POST['tag_ids'] ?? []);
+
+        $tagIds = $_POST['tag_ids'] ?? [];
+        if (empty($tagIds)) {
+            $failTag = Tag::failQuestionTags();
+            if (!empty($failTag[0]['id'])) {
+                $tagIds = [(int)$failTag[0]['id']];
+            }
+        }
+        Tag::syncTicketTags($ticketId, $tagIds);
         Flash::set('success', 'Ticket creado correctamente.');
-        header('Location: index.php?r=tickets/show&id=' . $ticketId);
-        exit;
+        Url::redirect('tickets/show', ['id' => $ticketId]);
     }
 
     public function show(): void
@@ -73,10 +110,29 @@ class TicketController
             'comments' => Ticket::comments($id),
             'history' => Ticket::history($id),
             'users' => User::assignableUsers(),
-            'tagsAll' => Tag::all(),
+            'priorities' => Priority::all(),
+            'statusInfoOptions' => StatusInfoOption::all(),
+            'tagsAll' => Tag::failQuestionTags(),
             'tagsSelected' => Tag::idsByTicket($id),
             'tags' => Ticket::tags($id),
         ]);
+    }
+
+    public function updateFields(): void
+    {
+        $user = Auth::user();
+        $id = (int)($_POST['ticket_id'] ?? 0);
+        if ($id <= 0) {
+            Flash::set('danger', 'Ticket invalido para editar.');
+            Url::redirect('tickets');
+        }
+        if (!Validator::email($_POST['email'] ?? null)) {
+            Flash::set('danger', 'Email invalido.');
+            Url::redirect('tickets/show', ['id' => $id]);
+        }
+        Ticket::updateFields($id, $_POST, $user);
+        Flash::set('success', 'Ticket actualizado.');
+        Url::redirect('tickets/show', ['id' => $id]);
     }
 
     public function updateStatus(): void
@@ -87,14 +143,12 @@ class TicketController
         $estadoInfo = $_POST['estado_info'] ?? null;
         if ($id <= 0 || $estado === '') {
             Flash::set('danger', 'Datos incompletos para actualizar estado.');
-            header('Location: index.php?r=tickets');
-            exit;
+            Url::redirect('tickets');
         }
 
         Ticket::updateStatus($id, $estado, $estadoInfo, $user);
         Flash::set('success', 'Estado actualizado.');
-        header('Location: index.php?r=tickets/show&id=' . $id);
-        exit;
+        Url::redirect('tickets/show', ['id' => $id]);
     }
 
     public function assign(): void
@@ -103,13 +157,11 @@ class TicketController
         $userId = (int)($_POST['asignado_a'] ?? 0);
         if ($id <= 0 || $userId <= 0) {
             Flash::set('danger', 'Datos invalidos para asignacion.');
-            header('Location: index.php?r=tickets');
-            exit;
+            Url::redirect('tickets');
         }
         Ticket::assign($id, $userId);
         Flash::set('success', 'Ticket asignado correctamente.');
-        header('Location: index.php?r=tickets/show&id=' . $id);
-        exit;
+        Url::redirect('tickets/show', ['id' => $id]);
     }
 
     public function addComment(): void
@@ -120,13 +172,22 @@ class TicketController
         $esInterno = isset($_POST['es_interno']) ? 1 : 0;
         if ($ticketId <= 0 || $comentario === '') {
             Flash::set('danger', 'Comentario invalido.');
-            header('Location: index.php?r=tickets');
-            exit;
+            Url::redirect('tickets');
         }
-        Ticket::addComment($ticketId, (int)$user['id'], $comentario, $esInterno);
+        $ticket = Ticket::findById($ticketId, $user);
+        if (!$ticket) {
+            Flash::set('danger', 'No tienes acceso al ticket o no existe.');
+            Url::redirect('tickets');
+        }
+
+        $saved = Ticket::addComment($ticketId, (int)$user['id'], $comentario, $esInterno);
+        if (!$saved) {
+            Flash::set('danger', 'No se pudo guardar el comentario. Intenta de nuevo.');
+            Url::redirect('tickets/show', ['id' => $ticketId]);
+        }
+
         Flash::set('success', 'Comentario agregado.');
-        header('Location: index.php?r=tickets/show&id=' . $ticketId);
-        exit;
+        Url::redirect('tickets/show', ['id' => $ticketId]);
     }
 
     public function syncTags(): void
@@ -134,15 +195,13 @@ class TicketController
         $ticketId = (int)($_POST['ticket_id'] ?? 0);
         if ($ticketId <= 0) {
             Flash::set('danger', 'Ticket invalido para tags.');
-            header('Location: index.php?r=tickets');
-            exit;
+            Url::redirect('tickets');
         }
         Tag::syncTicketTags($ticketId, $_POST['tag_ids'] ?? []);
         $user = Auth::user();
         Audit::log((int)$user['id'], 'ACTUALIZAR_TAGS_TICKET', 'tickets', $ticketId);
         Flash::set('success', 'Tags actualizados.');
-        header('Location: index.php?r=tickets/show&id=' . $ticketId);
-        exit;
+        Url::redirect('tickets/show', ['id' => $ticketId]);
     }
 
     public function delete(): void
@@ -151,12 +210,10 @@ class TicketController
         $user = Auth::user();
         if ($id <= 0) {
             Flash::set('danger', 'Ticket invalido para eliminar.');
-            header('Location: index.php?r=tickets');
-            exit;
+            Url::redirect('tickets');
         }
         Ticket::softDelete($id, (int)$user['id']);
         Flash::set('success', 'Ticket eliminado (soft delete).');
-        header('Location: index.php?r=tickets');
-        exit;
+        Url::redirect('tickets');
     }
 }

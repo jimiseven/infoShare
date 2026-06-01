@@ -23,6 +23,10 @@
       <?php foreach ($rowsByDay as $day): ?>
         <?php
           $ts = strtotime((string)$day['date']);
+          $dias = ['Monday'=>'lunes','Tuesday'=>'martes','Wednesday'=>'miercoles','Thursday'=>'jueves','Friday'=>'viernes','Saturday'=>'sabado','Sunday'=>'domingo'];
+          $mesesEs = [1=>'enero',2=>'febrero',3=>'marzo',4=>'abril',5=>'mayo',6=>'junio',7=>'julio',8=>'agosto',9=>'septiembre',10=>'octubre',11=>'noviembre',12=>'diciembre'];
+          $diaSemanaEs = $dias[date('l', $ts)] ?? strtolower(date('l', $ts));
+          $fechaVisual = $diaSemanaEs . ' ' . date('d', $ts) . ', ' . ($mesesEs[(int)date('n', $ts)] ?? date('F', $ts));
           $meses = [1=>'january',2=>'february',3=>'march',4=>'april',5=>'may',6=>'june',7=>'july',8=>'august',9=>'september',10=>'october',11=>'november',12=>'december'];
           $monthName = $meses[(int)date('n', $ts)] ?? date('F', $ts);
           $header = 'Hi, daily open ticket report: ' . date('d', $ts) . ' ' . $monthName . ' ' . date('Y', $ts);
@@ -33,7 +37,7 @@
           $smsText = implode("\n", $lines);
         ?>
         <tr>
-          <td><?= View::e(date('Y-m-d', $ts)) ?></td>
+          <td><?= View::e($fechaVisual) ?></td>
           <td><?= (int)$day['count'] ?></td>
           <td>
             <button

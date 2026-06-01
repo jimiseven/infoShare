@@ -3,6 +3,59 @@ declare(strict_types=1);
 
 class Ticket
 {
+    public static function searchByRole(array $user, array $filters, int $page, int $perPage): array
+    {
+        $pdo = Database::connection();
+        $where = ['t.deleted_at IS NULL'];
+        $params = [];
+
+        if ($user['rol'] === 'usuario_normal') {
+            $where[] = 't.asignado_a = :uid';
+            $params['uid'] = $user['id'];
+        }
+        if (isset($filters['tag_id']) && (int)$filters['tag_id'] > 0) {
+            $where[] = 'EXISTS (SELECT 1 FROM ticket_tags tt WHERE tt.ticket_id = t.id AND tt.tag_id = :tag_id)';
+            $params['tag_id'] = (int)$filters['tag_id'];
+        }
+        if (!empty($filters['estado'])) {
+            $where[] = 't.estado = :estado';
+            $params['estado'] = $filters['estado'];
+        }
+        if (isset($filters['prioridad_id']) && (int)$filters['prioridad_id'] > 0) {
+            $where[] = 't.prioridad_id = :prioridad_id';
+            $params['prioridad_id'] = (int)$filters['prioridad_id'];
+        }
+        if ($user['rol'] !== 'usuario_normal' && isset($filters['asignado_a']) && (int)$filters['asignado_a'] > 0) {
+            $where[] = 't.asignado_a = :asignado_a';
+            $params['asignado_a'] = (int)$filters['asignado_a'];
+        }
+        if (!empty($filters['q'])) {
+            $where[] = '(CAST(t.id AS CHAR) LIKE :q OR t.ticket_number LIKE :q OR t.email LIKE :q OR t.phone LIKE :q OR t.problem_name LIKE :q OR t.estado_info LIKE :q)';
+            $params['q'] = '%' . trim((string)$filters['q']) . '%';
+        }
+
+        $whereSql = implode(' AND ', $where);
+        $countStmt = $pdo->prepare('SELECT COUNT(*) FROM tickets t WHERE ' . $whereSql);
+        $countStmt->execute($params);
+        $total = (int)$countStmt->fetchColumn();
+
+        $offset = max(0, ($page - 1) * $perPage);
+        $sql = 'SELECT t.*, p.nombre AS prioridad_nombre, p.nivel AS prioridad_nivel, u.nombre AS asignado_nombre
+                FROM tickets t
+                LEFT JOIN prioridades p ON p.id = t.prioridad_id
+                LEFT JOIN usuarios u ON u.id = t.asignado_a
+                WHERE ' . $whereSql . '
+                ORDER BY t.created_at DESC
+                LIMIT ' . (int)$perPage . ' OFFSET ' . (int)$offset;
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+
+        return [
+            'rows' => $stmt->fetchAll(),
+            'total' => $total,
+        ];
+    }
+
     public static function listByRole(array $user, ?int $tagId = null): array
     {
         $pdo = Database::connection();
@@ -46,10 +99,10 @@ class Ticket
             'problem_name' => self::nullIfEmpty($data['problem_name'] ?? null),
             'description' => self::nullIfEmpty($data['description'] ?? null),
             'prioridad_id' => (int)($data['prioridad_id'] ?? 2),
-            'fecha_vencimiento' => self::nullIfEmpty($data['fecha_vencimiento'] ?? null),
-            'sla_horas' => (int)($data['sla_horas'] ?? 24),
+            'fecha_vencimiento' => null,
+            'sla_horas' => null,
             'creado_por' => $user['id'],
-            'asignado_a' => self::nullIfEmpty($data['asignado_a'] ?? null),
+            'asignado_a' => $user['id'],
         ]);
         $ticketId = (int) $pdo->lastInsertId();
         Audit::log((int)$user['id'], 'CREAR_TICKET', 'tickets', $ticketId);
@@ -122,25 +175,74 @@ class Ticket
     public static function comments(int $ticketId): array
     {
         $pdo = Database::connection();
-        $stmt = $pdo->prepare('SELECT c.*, u.nombre AS usuario_nombre FROM comentarios_ticket c INNER JOIN usuarios u ON u.id = c.usuario_id WHERE c.ticket_id = :ticket_id ORDER BY c.created_at DESC');
+        $stmt = $pdo->prepare('SELECT c.*, u.nombre AS usuario_nombre FROM comentarios_ticket c INNER JOIN usuarios u ON u.id = c.usuario_id WHERE c.ticket_id = :ticket_id ORDER BY c.created_at ASC');
         $stmt->execute(['ticket_id' => $ticketId]);
         return $stmt->fetchAll();
     }
 
-    public static function addComment(int $ticketId, int $userId, string $comment, int $esInterno = 1): bool
+    public static function updateFields(int $id, array $data, array $user): bool
     {
         $pdo = Database::connection();
-        $stmt = $pdo->prepare('INSERT INTO comentarios_ticket (ticket_id, usuario_id, comentario, es_interno) VALUES (:ticket_id, :usuario_id, :comentario, :es_interno)');
-        $ok = $stmt->execute([
-            'ticket_id' => $ticketId,
-            'usuario_id' => $userId,
-            'comentario' => trim($comment),
-            'es_interno' => $esInterno,
-        ]);
-        if ($ok) {
-            Audit::log($userId, 'COMENTARIO_TICKET', 'tickets', $ticketId);
+        $current = self::findById($id, $user);
+        if (!$current) {
+            return false;
         }
+
+        $allowed = ['ticket_number', 'pais', 'phone', 'email', 'problem_name', 'description', 'prioridad_id', 'estado_info'];
+        $payload = [];
+        foreach ($allowed as $field) {
+            if (array_key_exists($field, $data)) {
+                $payload[$field] = self::nullIfEmpty($data[$field]);
+            }
+        }
+        if (empty($payload)) {
+            return false;
+        }
+
+        $stmt = $pdo->prepare('UPDATE tickets SET ticket_number = :ticket_number, pais = :pais, phone = :phone, email = :email, problem_name = :problem_name, description = :description, prioridad_id = :prioridad_id, estado_info = :estado_info WHERE id = :id AND deleted_at IS NULL');
+        $ok = $stmt->execute([
+            'ticket_number' => $payload['ticket_number'] ?? $current['ticket_number'],
+            'pais' => $payload['pais'] ?? $current['pais'],
+            'phone' => $payload['phone'] ?? $current['phone'],
+            'email' => $payload['email'] ?? $current['email'],
+            'problem_name' => $payload['problem_name'] ?? $current['problem_name'],
+            'description' => $payload['description'] ?? $current['description'],
+            'prioridad_id' => $payload['prioridad_id'] ?? $current['prioridad_id'],
+            'estado_info' => $payload['estado_info'] ?? $current['estado_info'],
+            'id' => $id,
+        ]);
+
+        if ($ok) {
+            foreach ($payload as $field => $newValue) {
+                $oldValue = $current[$field] ?? null;
+                if ((string)$oldValue !== (string)$newValue) {
+                    self::addHistory($id, (int)$user['id'], $field, (string)$oldValue, (string)$newValue);
+                }
+            }
+            Audit::log((int)$user['id'], 'ACTUALIZAR_TICKET', 'tickets', $id);
+        }
+
         return $ok;
+    }
+
+    public static function addComment(int $ticketId, int $userId, string $comment, int $esInterno = 1): bool
+    {
+        try {
+            $pdo = Database::connection();
+            $stmt = $pdo->prepare('INSERT INTO comentarios_ticket (ticket_id, usuario_id, comentario, es_interno) VALUES (:ticket_id, :usuario_id, :comentario, :es_interno)');
+            $ok = $stmt->execute([
+                'ticket_id' => $ticketId,
+                'usuario_id' => $userId,
+                'comentario' => trim($comment),
+                'es_interno' => $esInterno,
+            ]);
+            if ($ok) {
+                Audit::log($userId, 'COMENTARIO_TICKET', 'tickets', $ticketId);
+            }
+            return $ok;
+        } catch (Throwable) {
+            return false;
+        }
     }
 
     public static function softDelete(int $id, int $userId): bool

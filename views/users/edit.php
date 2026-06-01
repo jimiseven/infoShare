@@ -1,6 +1,6 @@
 <h1 class="h3 mb-3">Editar usuario</h1>
 <div class="card"><div class="card-body">
-  <form method="POST" action="index.php?r=users/edit" class="row g-3">
+  <form method="POST" action="<?= View::e(Url::path('users/edit')) ?>" class="row g-3">
     <input type="hidden" name="_token" value="<?= View::e(Csrf::token()) ?>">
     <input type="hidden" name="id" value="<?= (int)$target['id'] ?>">
     <div class="col-md-6"><label class="form-label">Nombre</label><input class="form-control" name="nombre" value="<?= View::e($target['nombre']) ?>" required></div>
