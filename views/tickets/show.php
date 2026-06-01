@@ -14,9 +14,34 @@
       <p><strong>Estado:</strong> <?= View::e($ticket['estado']) ?></p>
       <p><strong>Estado info:</strong> <?= View::e($ticket['estado_info'] ?? '-') ?></p>
       <p><strong>Prioridad:</strong> <?= View::e($ticket['prioridad_nombre'] ?? '-') ?></p>
+      <p><strong>Vencimiento:</strong> <?= View::e(DateFormat::dueEs($ticket['fecha_vencimiento'] ?? null)) ?></p>
       <p><strong>Asignado:</strong> <?= View::e($ticket['asignado_nombre'] ?? '-') ?></p>
       <p><strong>Descripcion:</strong> <?= View::e($ticket['description'] ?? '-') ?></p>
+      <p><strong>Tags:</strong>
+        <?php if (count($tags) === 0): ?>-
+        <?php else: ?>
+          <?php foreach ($tags as $tg): ?>
+            <span class="badge text-bg-secondary"><?= View::e($tg['nombre']) ?></span>
+          <?php endforeach; ?>
+        <?php endif; ?>
+      </p>
     </div></div>
+
+    <div class="card mb-3">
+      <div class="card-header">Actualizar tags</div>
+      <div class="card-body">
+        <form method="POST" action="index.php?r=tickets/tags">
+          <input type="hidden" name="_token" value="<?= View::e(Csrf::token()) ?>">
+          <input type="hidden" name="ticket_id" value="<?= (int)$ticket['id'] ?>">
+          <select class="form-select mb-2" name="tag_ids[]" multiple>
+            <?php foreach ($tagsAll as $tg): ?>
+              <option value="<?= (int)$tg['id'] ?>" <?= in_array((int)$tg['id'], $tagsSelected, true) ? 'selected' : '' ?>><?= View::e($tg['nombre']) ?></option>
+            <?php endforeach; ?>
+          </select>
+          <button class="btn btn-outline-dark">Guardar tags</button>
+        </form>
+      </div>
+    </div>
 
     <div class="card mb-3">
       <div class="card-header">Cambiar estado</div>
@@ -95,5 +120,17 @@
         <?php endforeach; ?>
       </div>
     </div>
+
+    <?php if ($user['rol'] === 'admin'): ?>
+      <div class="card mt-3">
+        <div class="card-body">
+          <form method="POST" action="index.php?r=tickets/delete" onsubmit="return confirm('Seguro que deseas eliminar este ticket?');">
+            <input type="hidden" name="_token" value="<?= View::e(Csrf::token()) ?>">
+            <input type="hidden" name="ticket_id" value="<?= (int)$ticket['id'] ?>">
+            <button class="btn btn-sm btn-outline-danger">Soft delete ticket</button>
+          </form>
+        </div>
+      </div>
+    <?php endif; ?>
   </div>
 </div>

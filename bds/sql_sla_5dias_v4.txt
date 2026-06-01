@@ -1,0 +1,45 @@
+-- ============================================================
+-- INFO SHARE - SLA AUTOMATICO 5 DIAS POR TICKET (V4)
+-- Objetivo:
+-- 1) Calcular vencimiento a 5 dias desde creacion
+-- 2) Mantener SLA por defecto en 120 horas (5 dias)
+-- ============================================================
+
+USE `bd_infoshare_v1`;
+
+-- Recomendado: backup antes de ejecutar.
+
+-- 1) SLA default a 120 horas (5 dias)
+ALTER TABLE `tickets`
+  MODIFY `sla_horas` int(10) UNSIGNED NULL DEFAULT 120;
+
+-- 2) Completar vencimiento de tickets existentes que no lo tengan
+UPDATE `tickets`
+SET `fecha_vencimiento` = DATE_ADD(`created_at`, INTERVAL 5 DAY)
+WHERE `fecha_vencimiento` IS NULL
+  AND `created_at` IS NOT NULL;
+
+-- 3) Trigger para nuevos tickets: si no viene fecha_vencimiento,
+--    se calcula automaticamente a 5 dias desde creacion
+DROP TRIGGER IF EXISTS `tr_tickets_before_insert_set_due_5d`;
+
+DELIMITER $$
+
+CREATE TRIGGER `tr_tickets_before_insert_set_due_5d`
+BEFORE INSERT ON `tickets`
+FOR EACH ROW
+BEGIN
+  IF NEW.`sla_horas` IS NULL OR NEW.`sla_horas` = 0 THEN
+    SET NEW.`sla_horas` = 120;
+  END IF;
+
+  IF NEW.`fecha_vencimiento` IS NULL THEN
+    SET NEW.`fecha_vencimiento` = DATE_ADD(NOW(), INTERVAL 5 DAY);
+  END IF;
+END$$
+
+DELIMITER ;
+
+-- ============================================================
+-- FIN
+-- ============================================================

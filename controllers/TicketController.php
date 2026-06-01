@@ -4,16 +4,20 @@ declare(strict_types=1);
 require_once __DIR__ . '/../models/Ticket.php';
 require_once __DIR__ . '/../models/Priority.php';
 require_once __DIR__ . '/../models/User.php';
+require_once __DIR__ . '/../models/Tag.php';
 
 class TicketController
 {
     public function index(): void
     {
         $user = Auth::user();
-        $tickets = Ticket::listByRole($user);
+        $tagId = isset($_GET['tag_id']) && $_GET['tag_id'] !== '' ? (int)$_GET['tag_id'] : null;
+        $tickets = Ticket::listByRole($user, $tagId);
         View::render('tickets/index', [
             'title' => 'Tickets',
             'tickets' => $tickets,
+            'tags' => Tag::all(),
+            'selectedTagId' => $tagId,
         ]);
     }
 
@@ -25,6 +29,7 @@ class TicketController
             'title' => 'Crear ticket',
             'priorities' => $priorities,
             'users' => $users,
+            'tags' => Tag::all(),
         ]);
     }
 
@@ -39,6 +44,7 @@ class TicketController
         }
 
         $ticketId = Ticket::create($_POST, $user);
+        Tag::syncTicketTags($ticketId, $_POST['tag_ids'] ?? []);
         Flash::set('success', 'Ticket creado correctamente.');
         header('Location: index.php?r=tickets/show&id=' . $ticketId);
         exit;
@@ -67,6 +73,9 @@ class TicketController
             'comments' => Ticket::comments($id),
             'history' => Ticket::history($id),
             'users' => User::assignableUsers(),
+            'tagsAll' => Tag::all(),
+            'tagsSelected' => Tag::idsByTicket($id),
+            'tags' => Ticket::tags($id),
         ]);
     }
 
@@ -117,6 +126,37 @@ class TicketController
         Ticket::addComment($ticketId, (int)$user['id'], $comentario, $esInterno);
         Flash::set('success', 'Comentario agregado.');
         header('Location: index.php?r=tickets/show&id=' . $ticketId);
+        exit;
+    }
+
+    public function syncTags(): void
+    {
+        $ticketId = (int)($_POST['ticket_id'] ?? 0);
+        if ($ticketId <= 0) {
+            Flash::set('danger', 'Ticket invalido para tags.');
+            header('Location: index.php?r=tickets');
+            exit;
+        }
+        Tag::syncTicketTags($ticketId, $_POST['tag_ids'] ?? []);
+        $user = Auth::user();
+        Audit::log((int)$user['id'], 'ACTUALIZAR_TAGS_TICKET', 'tickets', $ticketId);
+        Flash::set('success', 'Tags actualizados.');
+        header('Location: index.php?r=tickets/show&id=' . $ticketId);
+        exit;
+    }
+
+    public function delete(): void
+    {
+        $id = (int)($_POST['ticket_id'] ?? 0);
+        $user = Auth::user();
+        if ($id <= 0) {
+            Flash::set('danger', 'Ticket invalido para eliminar.');
+            header('Location: index.php?r=tickets');
+            exit;
+        }
+        Ticket::softDelete($id, (int)$user['id']);
+        Flash::set('success', 'Ticket eliminado (soft delete).');
+        header('Location: index.php?r=tickets');
         exit;
     }
 }

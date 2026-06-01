@@ -53,6 +53,15 @@
         </select>
       </div>
 
+      <div class="col-12">
+        <label class="form-label">Tags</label>
+        <select class="form-select" name="tag_ids[]" multiple>
+          <?php foreach ($tags as $tag): ?>
+            <option value="<?= (int)$tag['id'] ?>"><?= View::e($tag['nombre']) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+
       <div class="col-md-6">
         <label class="form-label">SLA horas</label>
         <input type="number" class="form-control" name="sla_horas" value="24" min="1">

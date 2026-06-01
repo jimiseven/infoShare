@@ -38,6 +38,13 @@ $user = Auth::user();
     <div class="mb-3 d-flex gap-2">
       <a href="index.php?r=dashboard" class="btn btn-sm btn-outline-secondary">Dashboard</a>
       <a href="index.php?r=tickets" class="btn btn-sm btn-outline-secondary">Tickets</a>
+      <a href="index.php?r=reports/pending" class="btn btn-sm btn-outline-secondary">Pendientes</a>
+      <a href="index.php?r=reports/metrics" class="btn btn-sm btn-outline-secondary">Metricas</a>
+      <a href="index.php?r=reports/sla" class="btn btn-sm btn-outline-secondary">SLA</a>
+      <?php if ($user['rol'] === 'admin'): ?>
+        <a href="index.php?r=users" class="btn btn-sm btn-outline-secondary">Usuarios</a>
+        <a href="index.php?r=audit" class="btn btn-sm btn-outline-secondary">Auditoria</a>
+      <?php endif; ?>
       <a href="index.php?r=tickets/create" class="btn btn-sm btn-primary">Nuevo ticket</a>
     </div>
   <?php endif; ?>

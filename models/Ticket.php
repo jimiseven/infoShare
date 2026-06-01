@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 class Ticket
 {
-    public static function listByRole(array $user): array
+    public static function listByRole(array $user, ?int $tagId = null): array
     {
         $pdo = Database::connection();
         $baseSql = 'SELECT t.*, p.nombre AS prioridad_nombre, p.nivel AS prioridad_nivel, u.nombre AS asignado_nombre
@@ -12,13 +12,21 @@ class Ticket
                     LEFT JOIN usuarios u ON u.id = t.asignado_a
                     WHERE t.deleted_at IS NULL';
 
+        $params = [];
+        if ($tagId !== null && $tagId > 0) {
+            $baseSql .= ' AND EXISTS (SELECT 1 FROM ticket_tags tt WHERE tt.ticket_id = t.id AND tt.tag_id = :tag_id)';
+            $params['tag_id'] = $tagId;
+        }
+
         if ($user['rol'] === 'usuario_normal') {
             $stmt = $pdo->prepare($baseSql . ' AND t.asignado_a = :uid ORDER BY t.created_at DESC');
-            $stmt->execute(['uid' => $user['id']]);
+            $params['uid'] = $user['id'];
+            $stmt->execute($params);
             return $stmt->fetchAll();
         }
 
-        $stmt = $pdo->query($baseSql . ' ORDER BY t.created_at DESC');
+        $stmt = $pdo->prepare($baseSql . ' ORDER BY t.created_at DESC');
+        $stmt->execute($params);
         return $stmt->fetchAll();
     }
 
@@ -43,7 +51,9 @@ class Ticket
             'creado_por' => $user['id'],
             'asignado_a' => self::nullIfEmpty($data['asignado_a'] ?? null),
         ]);
-        return (int) $pdo->lastInsertId();
+        $ticketId = (int) $pdo->lastInsertId();
+        Audit::log((int)$user['id'], 'CREAR_TICKET', 'tickets', $ticketId);
+        return $ticketId;
     }
 
     public static function findById(int $id, array $user): ?array
@@ -88,14 +98,25 @@ class Ticket
         if ($user['rol'] === 'usuario_normal') {
             $params['uid'] = $user['id'];
         }
-        return $stmt->execute($params);
+        $ok = $stmt->execute($params);
+        if ($ok && $stmt->rowCount() > 0) {
+            self::addHistory($id, (int)$user['id'], 'estado', null, $estado);
+            self::addHistory($id, (int)$user['id'], 'estado_info', null, self::nullIfEmpty($estadoInfo));
+            Audit::log((int)$user['id'], 'CAMBIO_ESTADO_TICKET', 'tickets', $id);
+        }
+        return $ok;
     }
 
     public static function assign(int $id, int $userId): bool
     {
         $pdo = Database::connection();
         $stmt = $pdo->prepare('UPDATE tickets SET asignado_a = :asignado_a WHERE id = :id AND deleted_at IS NULL');
-        return $stmt->execute(['asignado_a' => $userId, 'id' => $id]);
+        $ok = $stmt->execute(['asignado_a' => $userId, 'id' => $id]);
+        if ($ok && $stmt->rowCount() > 0) {
+            self::addHistory($id, $userId, 'asignado_a', null, (string)$userId);
+            Audit::log($userId, 'ASIGNAR_TICKET', 'tickets', $id);
+        }
+        return $ok;
     }
 
     public static function comments(int $ticketId): array
@@ -110,11 +131,44 @@ class Ticket
     {
         $pdo = Database::connection();
         $stmt = $pdo->prepare('INSERT INTO comentarios_ticket (ticket_id, usuario_id, comentario, es_interno) VALUES (:ticket_id, :usuario_id, :comentario, :es_interno)');
-        return $stmt->execute([
+        $ok = $stmt->execute([
             'ticket_id' => $ticketId,
             'usuario_id' => $userId,
             'comentario' => trim($comment),
             'es_interno' => $esInterno,
+        ]);
+        if ($ok) {
+            Audit::log($userId, 'COMENTARIO_TICKET', 'tickets', $ticketId);
+        }
+        return $ok;
+    }
+
+    public static function softDelete(int $id, int $userId): bool
+    {
+        $stmt = Database::connection()->prepare('UPDATE tickets SET deleted_at = NOW() WHERE id = :id AND deleted_at IS NULL');
+        $ok = $stmt->execute(['id' => $id]);
+        if ($ok && $stmt->rowCount() > 0) {
+            Audit::log($userId, 'SOFT_DELETE_TICKET', 'tickets', $id);
+        }
+        return $ok;
+    }
+
+    public static function tags(int $ticketId): array
+    {
+        $stmt = Database::connection()->prepare('SELECT t.id, t.nombre FROM tags t INNER JOIN ticket_tags tt ON tt.tag_id = t.id WHERE tt.ticket_id = :ticket_id ORDER BY t.nombre ASC');
+        $stmt->execute(['ticket_id' => $ticketId]);
+        return $stmt->fetchAll();
+    }
+
+    private static function addHistory(int $ticketId, int $userId, string $field, ?string $old, ?string $new): void
+    {
+        $stmt = Database::connection()->prepare('INSERT INTO ticket_historial (ticket_id, usuario_id, campo_modificado, valor_anterior, valor_nuevo) VALUES (:ticket_id, :usuario_id, :campo_modificado, :valor_anterior, :valor_nuevo)');
+        $stmt->execute([
+            'ticket_id' => $ticketId,
+            'usuario_id' => $userId,
+            'campo_modificado' => $field,
+            'valor_anterior' => $old,
+            'valor_nuevo' => $new,
         ]);
     }
 

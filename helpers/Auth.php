@@ -21,6 +21,7 @@ class Auth
         $user = $stmt->fetch();
 
         if (!$user) {
+            Audit::log(null, 'LOGIN_FAIL', 'usuarios', null);
             return false;
         }
 
@@ -35,6 +36,7 @@ class Auth
             $isValid = $expected !== null && hash_equals($expected, $password);
         }
         if (!$isValid) {
+            Audit::log((int)$user['id'], 'LOGIN_FAIL', 'usuarios', (int)$user['id']);
             return false;
         }
 
@@ -46,6 +48,7 @@ class Auth
             'rol' => $user['rol'],
         ];
 
+        Audit::log((int)$user['id'], 'LOGIN_OK', 'usuarios', (int)$user['id']);
         return true;
     }
 
